@@ -2,14 +2,29 @@
 vmware_processor.py
 -------------------
 Processor for VMware vSphere exports (RVTools format).
+Dynamically detects and uses creation date if available.
 """
 
 import pandas as pd
 from .base_processor import BaseProcessor
 
 
+# Possible column names for creation date in RVTools exports
+CREATION_DATE_COLUMNS = [
+    'Creation Date',
+    'CreationDate', 
+    'Created',
+    'Create Date',
+    'VM Created',
+    'Annotation',  # Sometimes contains date info
+]
+
+
 class VMwareProcessor(BaseProcessor):
     """Processor for VMware/RVTools vInfo exports."""
+    
+    def __init__(self):
+        self._has_date_data = False  # Will be set dynamically during load
     
     @property
     def source_name(self) -> str:
@@ -21,7 +36,7 @@ class VMwareProcessor(BaseProcessor):
     
     @property
     def has_date_data(self) -> bool:
-        return False  # RVTools doesn't provide creation dates
+        return self._has_date_data
     
     def load_and_normalize(self, filepath: str) -> pd.DataFrame:
         """Load RVTools vInfo sheet and normalize to standard schema."""
@@ -39,7 +54,7 @@ class VMwareProcessor(BaseProcessor):
         # Normalize column names
         df = self._normalize_columns(df)
         
-        # Clean and convert data
+        # Clean and convert data (including date detection)
         df = self._clean_data(df)
         
         return df
@@ -66,8 +81,24 @@ class VMwareProcessor(BaseProcessor):
         df = df.rename(columns=rename_map)
         
         return df
-
     
+    def _find_creation_date_column(self, df: pd.DataFrame) -> str:
+        """Find the creation date column if it exists."""
+        # Check for known column names (case-insensitive)
+        df_columns_lower = {col.lower(): col for col in df.columns}
+        
+        for candidate in CREATION_DATE_COLUMNS:
+            if candidate.lower() in df_columns_lower:
+                return df_columns_lower[candidate.lower()]
+        
+        # Also check for columns containing 'creat' and 'date'
+        for col in df.columns:
+            col_lower = col.lower()
+            if 'creat' in col_lower and 'date' in col_lower:
+                return col
+        
+        return None
+
     def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean and convert VMware data to standard format."""
         # Remove rows without vm_name
@@ -108,8 +139,23 @@ class VMwareProcessor(BaseProcessor):
         else:
             df['status'] = 'Unknown'
         
-        # No creation date available in RVTools
+        # Try to find and parse creation date
         df['creation_date'] = pd.NaT
+        date_col = self._find_creation_date_column(df)
+        
+        if date_col:
+            # Try to parse the date column
+            df['creation_date'] = pd.to_datetime(df[date_col], errors='coerce')
+            
+            # Check if we got valid dates
+            valid_dates = df['creation_date'].notna().sum()
+            if valid_dates > 0:
+                self._has_date_data = True
+                print(f"  ✓ Found creation dates in column '{date_col}' ({valid_dates} valid dates)")
+            else:
+                self._has_date_data = False
+        else:
+            self._has_date_data = False
         
         # Handle missing cluster_name (use datacenter if available)
         if 'cluster_name' not in df.columns or df['cluster_name'].isna().all():
@@ -144,3 +190,7 @@ if __name__ == '__main__':
     print(f"Total vCPUs: {data['stats']['total_vcpus']}")
     print(f"Total Memory: {data['stats']['total_memory_gb']} GB")
     print(f"Has Date Data: {data['has_date_data']}")
+    
+    if data['has_date_data']:
+        print(f"First VM Date: {data['stats'].get('first_vm_date', 'N/A')}")
+        print(f"Last VM Date: {data['stats'].get('last_vm_date', 'N/A')}")
