@@ -64,29 +64,79 @@ class BaseProcessor(ABC):
         return 'Linux'
     
     def get_consolidated_os(self, guest_os) -> str:
-        """Consolidate OS versions (e.g., RHEL 8.6 -> RHEL 8)."""
+        """
+        Consolidate OS versions for cleaner reporting.
+        Examples:
+        - 'Microsoft Windows Server 2008 R2 (64-bit)' -> 'Windows Server 2008 R2'
+        - 'Microsoft Windows Server 2003 Standard (32-bit)' -> 'Windows Server 2003'
+        - 'Microsoft Windows XP Professional (32-bit)' -> 'Windows XP'
+        - 'Red Hat Enterprise Linux 6 (64-bit)' -> 'RHEL 6'
+        """
         if pd.isna(guest_os):
             return 'Unknown'
         
         os_str = str(guest_os).strip()
         
-        # RHEL consolidation
-        rhel_match = re.match(r'(RHEL|Red Hat Enterprise Linux)\s*(\d+)', os_str, re.IGNORECASE)
+        # RHEL consolidation (check before cleaning to preserve "Enterprise")
+        rhel_match = re.match(r'Red Hat Enterprise Linux\s*(\d+)', os_str, re.IGNORECASE)
         if rhel_match:
-            major_ver = rhel_match.group(2)
-            return f'RHEL {major_ver}'
+            return f'RHEL {rhel_match.group(1)}'
         
-        # Windows consolidation
-        if 'windows' in os_str.lower():
-            win_match = re.match(r'Windows\s*(Server\s*)?(\d+)', os_str, re.IGNORECASE)
-            if win_match:
-                year = win_match.group(2)
-                return f'Windows {year}'
-            win_client = re.match(r'Windows\s*(\d+)', os_str, re.IGNORECASE)
-            if win_client:
-                return f'Windows {win_client.group(1)}'
+        # Remove common suffixes: (64-bit), (32-bit)
+        os_clean = re.sub(r'\s*\(\d+-bit\)', '', os_str)
+        # Remove edition names for Windows
+        os_clean = re.sub(r'\s+(Standard|Enterprise|Professional|Datacenter|Ultimate|Home|Premium)\b', '', os_clean, flags=re.IGNORECASE)
+        os_clean = os_clean.strip()
         
-        return os_str
+        # CentOS consolidation
+        centos_match = re.match(r'CentOS\s*[\d/]+', os_clean, re.IGNORECASE)
+        if centos_match:
+            # Extract first version number
+            ver_match = re.search(r'(\d+)', os_clean)
+            if ver_match:
+                return f'CentOS {ver_match.group(1)}'
+            return 'CentOS'
+        
+        # SUSE consolidation
+        suse_match = re.match(r'SUSE\s*Linux\s*Enterprise\s*(\d+)', os_str, re.IGNORECASE)
+        if suse_match:
+            return f'SUSE {suse_match.group(1)}'
+        if 'suse' in os_str.lower():
+            return 'SUSE Linux'
+        
+        # Windows consolidation - remove "Microsoft" prefix
+        if 'windows' in os_clean.lower():
+            os_clean = re.sub(r'^Microsoft\s+', '', os_clean, flags=re.IGNORECASE)
+            
+            # Windows Server with year
+            server_match = re.match(r'Windows\s+Server\s+(\d{4}(?:\s+R2)?)', os_clean, re.IGNORECASE)
+            if server_match:
+                return f'Windows Server {server_match.group(1)}'
+            
+            # Windows client versions
+            client_match = re.match(r'Windows\s+(XP|Vista|\d+)', os_clean, re.IGNORECASE)
+            if client_match:
+                return f'Windows {client_match.group(1)}'
+            
+            return os_clean
+        
+        # Oracle/Solaris
+        if 'solaris' in os_str.lower():
+            solaris_match = re.search(r'Solaris\s*(\d+)', os_str, re.IGNORECASE)
+            if solaris_match:
+                return f'Solaris {solaris_match.group(1)}'
+            return 'Solaris'
+        
+        # FreeBSD
+        if 'freebsd' in os_str.lower():
+            return 'FreeBSD'
+        
+        # Other Linux
+        if 'linux' in os_str.lower():
+            if 'other' in os_str.lower():
+                return 'Other Linux'
+        
+        return os_clean
     
     def get_size_category(self, mem_gb: int, vcpus: int) -> str:
         """
