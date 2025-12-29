@@ -885,6 +885,67 @@ tr:hover {
     font-size: 48px;
     margin-bottom: 20px;
 }
+
+/* ============================================
+   DATA TABLE WITH MINI BARS
+   ============================================ */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.data-table th {
+    background: #f8f8f8;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #666;
+    border-bottom: 2px solid #e0e0e0;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.data-table th:hover {
+    background: #f0f0f0;
+}
+
+.data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.data-table tr:hover {
+    background: #fafafa;
+}
+
+.mini-bar {
+    height: 10px;
+    background: #e8e8e8;
+    border-radius: 5px;
+    overflow: hidden;
+    min-width: 100px;
+}
+
+.mini-bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.mini-bar-fill.vms {
+    background: linear-gradient(90deg, #2196F3, #1976D2);
+}
+
+.mini-bar-fill.vcpus {
+    background: linear-gradient(90deg, #4CAF50, #388E3C);
+}
+
+.mini-bar-fill.memory {
+    background: linear-gradient(90deg, #FF9800, #F57C00);
+}
 '''
 
 

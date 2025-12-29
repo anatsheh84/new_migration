@@ -332,39 +332,8 @@ function initOverviewCharts() {{
         }});
     }}
     
-    // Host Resources Horizontal Bar Chart
-    const hostCtx = document.getElementById('chart-host-resources');
-    if (hostCtx) {{
-        charts.hostResources = new Chart(hostCtx, {{
-            type: 'bar',
-            data: {{
-                labels: overviewChartData.host?.labels || [],
-                datasets: [
-                    {{
-                        label: 'VMs',
-                        data: overviewChartData.host?.vms || [],
-                        backgroundColor: chartColors.blue
-                    }},
-                    {{
-                        label: 'vCPUs (÷10)',
-                        data: (overviewChartData.host?.vcpus || []).map(v => v / 10),
-                        backgroundColor: chartColors.green
-                    }},
-                    {{
-                        label: 'Memory GB (÷10)',
-                        data: (overviewChartData.host?.memory || []).map(v => v / 10),
-                        backgroundColor: chartColors.orange
-                    }}
-                ]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                scales: {{ x: {{ beginAtZero: true }} }}
-            }}
-        }});
-    }}
+    // Host Resources Data Table (replaces chart for better readability)
+    initHostResourceTable();
     
     // Guest OS Bar Chart
     const guestOsCtx = document.getElementById('chart-guest-os');
@@ -446,6 +415,113 @@ function initSizingCharts() {{
             }}
         }});
     }}
+}}
+
+// ============================================
+// HOST RESOURCE TABLE (Data Table with Mini Bars)
+// ============================================
+let hostTableData = [];
+let hostSortColumn = 1; // Default sort by VMs
+let hostSortAsc = false; // Descending by default
+
+function initHostResourceTable() {{
+    const tbody = document.getElementById('host-table-body');
+    if (!tbody) return;
+    
+    // Build host data array
+    const labels = overviewChartData.host?.labels || [];
+    const vms = overviewChartData.host?.vms || [];
+    const vcpus = overviewChartData.host?.vcpus || [];
+    const memory = overviewChartData.host?.memory || [];
+    
+    hostTableData = labels.map((name, i) => ({{
+        name: name,
+        vms: vms[i] || 0,
+        vcpus: vcpus[i] || 0,
+        memory: memory[i] || 0
+    }}));
+    
+    // Sort by VMs descending initially
+    hostTableData.sort((a, b) => b.vms - a.vms);
+    
+    renderHostTable();
+}}
+
+function renderHostTable() {{
+    const tbody = document.getElementById('host-table-body');
+    if (!tbody) return;
+    
+    const maxVms = Math.max(...hostTableData.map(h => h.vms), 1);
+    
+    tbody.innerHTML = hostTableData.map(host => {{
+        const pct = (host.vms / maxVms * 100).toFixed(0);
+        return `
+            <tr>
+                <td><strong>${{host.name}}</strong></td>
+                <td>${{host.vms}}</td>
+                <td>
+                    <div class="mini-bar">
+                        <div class="mini-bar-fill vms" style="width: ${{pct}}%"></div>
+                    </div>
+                </td>
+                <td>${{host.vcpus.toLocaleString()}}</td>
+                <td>${{host.memory.toLocaleString()}}</td>
+            </tr>
+        `;
+    }}).join('');
+}}
+
+function sortHostTable(colIndex) {{
+    // Toggle sort direction if same column
+    if (hostSortColumn === colIndex) {{
+        hostSortAsc = !hostSortAsc;
+    }} else {{
+        hostSortColumn = colIndex;
+        hostSortAsc = false; // Default descending for numbers
+    }}
+    
+    const keys = ['name', 'vms', 'vms', 'vcpus', 'memory']; // col 2 uses vms for distribution
+    const key = keys[colIndex];
+    
+    hostTableData.sort((a, b) => {{
+        let cmp = 0;
+        if (typeof a[key] === 'string') {{
+            cmp = a[key].localeCompare(b[key]);
+        }} else {{
+            cmp = a[key] - b[key];
+        }}
+        return hostSortAsc ? cmp : -cmp;
+    }});
+    
+    renderHostTable();
+}}
+
+function updateHostResourceTable() {{
+    // Rebuild host data from filtered data
+    const hostData = sumBy(filteredData, 'host', ['vcpus', 'memory_gb']);
+    
+    hostTableData = Object.keys(hostData).map(name => ({{
+        name: name,
+        vms: hostData[name].count || 0,
+        vcpus: hostData[name].vcpus || 0,
+        memory: hostData[name].memory_gb || 0
+    }}));
+    
+    // Re-sort by current sort column
+    const keys = ['name', 'vms', 'vms', 'vcpus', 'memory'];
+    const key = keys[hostSortColumn];
+    
+    hostTableData.sort((a, b) => {{
+        let cmp = 0;
+        if (typeof a[key] === 'string') {{
+            cmp = a[key].localeCompare(b[key]);
+        }} else {{
+            cmp = a[key] - b[key];
+        }}
+        return hostSortAsc ? cmp : -cmp;
+    }});
+    
+    renderHostTable();
 }}
 
 function initMigrationCharts() {{
@@ -871,16 +947,8 @@ function updateOverviewCharts() {{
         charts.clusterResources.update();
     }}
     
-    // Host Resources Bar Chart
-    if (charts.hostResources) {{
-        const hostData = sumBy(filteredData, 'host', ['vcpus', 'memory_gb']);
-        const hostNames = Object.keys(hostData);
-        charts.hostResources.data.labels = hostNames;
-        charts.hostResources.data.datasets[0].data = hostNames.map(h => hostData[h].count);
-        charts.hostResources.data.datasets[1].data = hostNames.map(h => hostData[h].vcpus / 10);
-        charts.hostResources.data.datasets[2].data = hostNames.map(h => hostData[h].memory_gb / 10);
-        charts.hostResources.update();
-    }}
+    // Host Resources Data Table
+    updateHostResourceTable();
     
     // Guest OS Bar Chart
     if (charts.guestOs) {{

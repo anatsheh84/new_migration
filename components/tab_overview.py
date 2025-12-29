@@ -79,8 +79,21 @@ def generate_charts_section():
                 </div>
                 <div class="chart-card full-width">
                     <div class="chart-title">Host Resource Distribution</div>
-                    <div class="chart-container">
-                        <canvas id="chart-host-resources"></canvas>
+                    <div class="table-wrapper" style="max-height: 350px; overflow-y: auto;">
+                        <table class="data-table" id="host-resource-table">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortHostTable(0)" style="cursor:pointer">Host ↕</th>
+                                    <th onclick="sortHostTable(1)" style="cursor:pointer">VMs ↕</th>
+                                    <th style="min-width: 150px;">VM Distribution</th>
+                                    <th onclick="sortHostTable(3)" style="cursor:pointer">vCPUs ↕</th>
+                                    <th onclick="sortHostTable(4)" style="cursor:pointer">Memory (GB) ↕</th>
+                                </tr>
+                            </thead>
+                            <tbody id="host-table-body">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <div class="chart-card full-width">
